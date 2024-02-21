@@ -1,13 +1,5 @@
 #!/bin/bash
 
-#set -exv
-#
-# This script was made to create a CSV file with all credentials from AZURE KEYVAULT.
-# The file generated will be imported to CyberArk Privilege Cloud to be managed and sync by Secret Hub
-# Aslan C. M. Ramos  < aslan.ramos @ cyberark.com >
-# First release: Feb/2024
-
-
 ## FIRST STEP DISCOVER , add some arguments to solve it. but its ok
 
 
