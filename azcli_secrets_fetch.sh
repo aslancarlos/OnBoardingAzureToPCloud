@@ -56,6 +56,10 @@ for i in $(seq 0 $AKV_LENGTH); do
 done
 
 
+
+#### Porfa, cambear nomes IWT2023MX en todas las lineas, com nome de AKV
+#### tuve erros como variaveis.
+
 FILEEXPORTED="iwt2023.csv"
 NAME="iwt2023mx"
 
