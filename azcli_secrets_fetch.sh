@@ -21,8 +21,8 @@ BOLD_WHITE='\033[1;37m'   # Bold White
 # Reset formatting
 RESET='\033[0m'           # Reset to default formatting
 
-##
-CPM="CPM-1"
+## Need to be defined. 
+CPM=""
 
 if [[ -z ${CPM} ]]; then
    echo "ERROR: Please add the CPM Server name" 
