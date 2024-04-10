@@ -22,6 +22,8 @@ For support, email aslan.ramos@cyberark.com.
 ## Features
 
 - Extract all secrets from a AKV/RG/Sub
-- Build an encrypted file .CSV with the data from Secrets.
+- Add the required tags from CyberArk Secretshub
+- Add support to recursive on ResourceGroups
+
 
 
