@@ -1,93 +1,118 @@
 #!/bin/bash
 
-## FIRST STEP DISCOVER , add some arguments to solve it. but its ok
+# Text colors
+RED='\033[0;31m'          # Red
+GREEN='\033[0;32m'        # Green
+YELLOW='\033[0;33m'       # Yellow
+BLUE='\033[0;34m'         # Blue
+MAGENTA='\033[0;35m'      # Magenta
+CYAN='\033[0;36m'         # Cyan
+WHITE='\033[0;37m'        # White
+
+# Bold text colors
+BOLD_RED='\033[1;31m'     # Bold Red
+BOLD_GREEN='\033[1;32m'   # Bold Green
+BOLD_YELLOW='\033[1;33m'  # Bold Yellow
+BOLD_BLUE='\033[1;34m'    # Bold Blue
+BOLD_MAGENTA='\033[1;35m' # Bold Magenta
+BOLD_CYAN='\033[1;36m'    # Bold Cyan
+BOLD_WHITE='\033[1;37m'   # Bold White
+
+# Reset formatting
+RESET='\033[0m'           # Reset to default formatting
 
 
-## GET ALL SECRETS AVAILABLE 
-#  az keyvault secret list --vault-name iwt2023mx --query [].name -o tsv
-
-# Declare K:V
-
-## Show the value
-
-# az keyvault secret show --vault-name iwt2023mx  --name "Secrets-Hub-Accounts-oxxo-testplaintext" --query "value"
-
-# validate if the AZURE CLI is installed
-
-# REFACT: could be better to show which is missing.
-
-if ! [ `which az` ] || ! [ `which jq` ]; then 
-  clear
-  echo  "ERR: Please check your Azure Cli Installation or AZ Command Path"
-  exit 1
-
-fi 
+counter(){
+# Counting down 
+   # Set the initial countdown value
+   countdown=2
+   
+   # Loop while countdown is greater than 0
+   while [ $countdown -gt 0 ]; do
+      printf "\rTimer: $countdown seconds remaining"
+      sleep 1  # Sleep for 1 second
+      countdown=$((countdown - 1))  # Decrement countdown
+   done
+   echo -e "\n" 
+}
 
 
-# Generate file to work, all AKV accessible by this account
-
-AKV_LIST_FILE="avk_list.json"
-
-az keyvault list > $AKV_LIST_FILE
-
-if ! [ -f $AKV_LIST_FILE ]; then
-  echo "ERR: Cannot access the AKV, check you credentials"
-fi
-
-
-# Check the length ?
-
-AKV_LENGTH=`jq length ${AKV_LIST_FILE}`
-
-AKV_LENGTH=$(expr $AKV_LENGTH - 1)
-
-for i in $(seq 0 $AKV_LENGTH); do
-  vault=`jq ".[$i] | .type" $AKV_LIST_FILE`
-  if ! [[ $vault == *"vaults"* ]]; then
-     continue
+# Function check if the safe exist
+check_safe_exist() {
+  cybr safes list-member -s $1 > /dev/null 2>&1
+  if [ $? -eq 0 ]; then
+     echo -e "${GREEN}[OK] ${RESET} Exist ${BOLD_GREEN} $1 ${RESET}" 
+     return 1
+  else 
+     echo -e "${RED}[ERROR] ${RESET} No exist safe ${BOLD_RED} $1 ${RESET}" 
+     echo "Creating the safe $1"
+     counter 
+     create_safe $1
+     return 0
   fi
+}
 
-  name=`jq ".[$i] | .name" $AKV_LIST_FILE`
-  location=`jq ".[$i] | .location" $AKV_LIST_FILE`
-  resource=`jq ".[$i] | .resourceGroup" $AKV_LIST_FILE`
+verify_members_safe(){
+   users=("SecretsHub")
+   for member in "${users[@]}"; do
+      cybr safe list-members -s $1 | jq '.value[] | select(.memberName == "'${member}'")' > /dev/null 2>&1
+      if [ $? -eq 0 ]; then
+         echo -e "${GREEN}[OK] ${RESET} Exist ${member} on ${BOLD_GREEN} $1 ${RESET}" 
+      else 
+         echo -e "${RED}[ERROR] ${RESET} No exist safe ${member} on  ${BOLD_RED} $1 ${RESET}"
+         counter
+         create_member_safe
+      fi
+   done
+}
 
- echo $name 
+create_member_safe(){
+   cybr safe add-member -s $1 --access-content-without-confirmation --list-accounts --view-safe-members --retrieve-accounts -m 'SecretsHub' -t user > /dev/null 2>&1
+}
 
+#Create the safe
+create_safe() {
+  cybr safes add -s $1 -d "Safe created by CyberArk OnBoarding SecretsHub Script"   
+  echo "Created $1" 
+}
+
+# CLEAN TERMINAL
+clear 
+
+echo -e "Onboarding account from ${BLUE} Azure AKV ${RESET} to ${GREEN} CyberArk Secrets HUB ${RESET}"
+
+# Get a list of all resource groups
+resource_groups=$(az group list --query '[].name' -o tsv)
+
+# Iterate over each resource group
+for resource_group in $resource_groups; do
+    echo "Retrieving secrets from resource group: $resource_group"
+    
+    # Get a list of all Key Vaults in the resource group
+    vaults=$(az keyvault list --resource-group $resource_group --query '[].name' -o tsv)
+        
+    # Iterate over each Key Vault
+    for vault in $vaults; do
+        echo "Verify if the safe exist on CyberArk PCloud"
+        check_safe_exist "${vault}"
+        verify_members_safe "${vault}"
+
+        echo "Retrieving secrets from Resource Group ${resource_group} -> Key Vault: $vault"
+        
+        # Get a list of all secrets in the Key Vault
+        secrets=$(az keyvault secret list --vault-name $vault --query '[].name' -o tsv)
+        
+        # Iterate over each secret
+        for secret in $secrets; do
+            echo "Secret Name: $secret"
+            echo "Vault Name: $vault"
+            
+            # Retrieve the value of the secret
+            secret_value=$(az keyvault secret show --vault-name $vault --name $secret --query 'value' -o tsv)
+            echo "Secret Value: $secret_value"
+            
+            # Add your logic here to handle the secret value if needed...
+        done
+    done
 done
 
-
-
-#### Porfa, cambear nomes IWT2023MX en todas las lineas, com nome de AKV
-#### tuve erros como variaveis.
-
-FILEEXPORTED="iwt2023.csv"
-NAME="iwt2023mx"
-
-TOTAL=`az keyvault secret list --vault-name iwt2023mx | jq " length"`
-
-echo "-- Recovering total of $TOTAL secrets from $NAME"
-echo "userName,Secret Name In Target,safeName,platformID,secret,automaticManagementEnabled,manualManagementReason" > $FILEEXPORTED
-for i in `cat teste`; do 
-   TOTAL=$(expr $TOTAL - 1)
-   echo "Fetching [$i] - left $TOTAL"
-   passwd=`az keyvault secret show --vault-name iwt2023mx  --name $i --query "value"`
-   echo "$i,$i,Secrets Hub Accounts,SecretsHub Platform,$passwd,FALSE,Imported by CyberArk OnBoarding" >> $FILEEXPORTED
-done
-
-
-PASSWDGEN=`openssl rand -base64 16`
-echo ":: Encrypting the file $FILEEXPORTED"
-
-openssl enc -pbkdf2 -salt -in $FILEEXPORTED -out $FILEEXPORTED.enc -k $PASSWDGEN
-echo ":: removing the clean text file"
-rm -rf $FILEEXPORTED
-
-echo "!! The secrets now is encrypted, save this password"
-echo $PASSWDGEN
-echo "!! The file is $FILEEXPORTED.enc"
-
-echo "!! Example: Open the file: "
-echo "openssl enc -salt -in $FILEEXPORTED.enc -out $FILEEXPORTED.clear -k $PASSWDGEN"
-
-# Clean up 
-#rm -rf $AKV_LIST_FILE
