@@ -21,6 +21,14 @@ BOLD_WHITE='\033[1;37m'   # Bold White
 # Reset formatting
 RESET='\033[0m'           # Reset to default formatting
 
+##
+CPM="CPM-1"
+
+if [[ -z ${CPM} ]]; then
+   echo "ERROR: Please add the CPM Server name" 
+fi
+
+
 
 counter(){
 # Counting down 
@@ -41,7 +49,7 @@ counter(){
 check_safe_exist() {
   cybr safes list-member -s $1 > /dev/null 2>&1
   if [ $? -eq 0 ]; then
-     echo -e "${GREEN}[OK] ${RESET} Exist ${BOLD_GREEN} $1 ${RESET}" 
+     echo -e "${GREEN}[OK] ${RESET} Exist the safe ${BOLD_GREEN} $1 ${RESET}" 
      return 1
   else 
      echo -e "${RED}[ERROR] ${RESET} No exist safe ${BOLD_RED} $1 ${RESET}" 
@@ -55,25 +63,36 @@ check_safe_exist() {
 verify_members_safe(){
    users=("SecretsHub")
    for member in "${users[@]}"; do
-      cybr safe list-members -s $1 | jq '.value[] | select(.memberName == "'${member}'")' > /dev/null 2>&1
+      #cybr safe list-members -s $1 | jq '.value[] | select(.memberName == "'${member}'")' > /dev/null 2>&1
+      cybr safe list-members -s $1 | grep -i SecretsHub > /dev/null 2>&1
       if [ $? -eq 0 ]; then
-         echo -e "${GREEN}[OK] ${RESET} Exist ${member} on ${BOLD_GREEN} $1 ${RESET}" 
+         echo -e "${GREEN}[OK] ${RESET} Exist ${member} on safe ${BOLD_GREEN} $1 ${RESET}" 
       else 
-         echo -e "${RED}[ERROR] ${RESET} No exist safe ${member} on  ${BOLD_RED} $1 ${RESET}"
-         counter
-         create_member_safe
+         echo -e "${RED}[ERROR] ${RESET} No exist  ${member} on safe ${BOLD_RED} $1 ${RESET}"
+         echo -e "${BOLD_RED}Please add the SecretsHub as member on this safe $1${RESET}"
+         
       fi
    done
 }
 
-create_member_safe(){
-   cybr safe add-member -s $1 --access-content-without-confirmation --list-accounts --view-safe-members --retrieve-accounts -m 'SecretsHub' -t user > /dev/null 2>&1
-}
+#create_member_safe(){
+#   cybr safe add-member -s $1 --access-content-without-confirmation --list-accounts --view-safe-members --retrieve-accounts -m 'SecretsHub' -t user 
+#   #cybr safe add-member -s $1 --access-content-without-confirmation --list-accounts --view-safe-members --retrieve-accounts -m 'aslan.ramos@cyberark.cloud.1741' -t user 
+#}
 
 #Create the safe
 create_safe() {
-  cybr safes add -s $1 -d "Safe created by CyberArk OnBoarding SecretsHub Script"   
+  cybr safes add --cpm $CPM -s $1 -d "Safe created by CyberArk OnBoarding SecretsHub Script" 
   echo "Created $1" 
+}
+
+create_account_pcloud(){
+  cybr accounts add -s $1 -p SecretsHubPlatform -t password -c $3 --platform-properties "SecretNameInSecretStore=$2" | grep -i id > /dev/null 2>&1
+  if [ $? -eq 0 ]; then
+         echo -e "${BOLD_GREEN}[OK] ${RESET} Create Secret $2 from $1 Created ${RESET}" 
+  else 
+         echo -e "${BOLD_GREEN}[FAIL] ${RESET} Create Secret $2 from $1 Created ${RESET}"        
+  fi
 }
 
 # CLEAN TERMINAL
@@ -86,7 +105,7 @@ resource_groups=$(az group list --query '[].name' -o tsv)
 
 # Iterate over each resource group
 for resource_group in $resource_groups; do
-    echo "Retrieving secrets from resource group: $resource_group"
+    echo -e "Retrieving secrets from resource group: ${BOLD_WHITE}$resource_group${RESET}"
     
     # Get a list of all Key Vaults in the resource group
     vaults=$(az keyvault list --resource-group $resource_group --query '[].name' -o tsv)
@@ -97,22 +116,17 @@ for resource_group in $resource_groups; do
         check_safe_exist "${vault}"
         verify_members_safe "${vault}"
 
-        echo "Retrieving secrets from Resource Group ${resource_group} -> Key Vault: $vault"
+        echo -e "Retrieving secrets from Resource Group ${BOLD_WHITE} ${resource_group}${RESET}-> Key Vault: $vault ${RESET}"
         
         # Get a list of all secrets in the Key Vault
         secrets=$(az keyvault secret list --vault-name $vault --query '[].name' -o tsv)
         
         # Iterate over each secret
         for secret in $secrets; do
-            echo "Secret Name: $secret"
-            echo "Vault Name: $vault"
-            
+                       
             # Retrieve the value of the secret
             secret_value=$(az keyvault secret show --vault-name $vault --name $secret --query 'value' -o tsv)
-            echo "Secret Value: $secret_value"
-            
-            # Add your logic here to handle the secret value if needed...
+            create_account_pcloud $vault $secret $secret_value 
         done
     done
 done
-

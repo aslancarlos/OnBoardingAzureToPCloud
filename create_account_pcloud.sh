@@ -1,18 +1,24 @@
 #!/bin/bash
 
 # Set your CyberArk Privileged Cloud subdomain
-SUBDOMAIN="your-subdomain"
+SUBDOMAIN="latamlab"
 
 # Set your OAuth confidential client credentials
-CLIENT_ID="your-client-id"
-CLIENT_SECRET="your-client-secret"
+CLIENT_ID="azureonboarding@cyberark.cloud.1741"
+CLIENT_SECRET="CyberArk11@@"
 
 # Authenticate and get an access token
-ACCESS_TOKEN=$(curl -s -X POST \
-    "https://${SUBDOMAIN}.privilegecloud.cyberark.com/PasswordVault/Logon" \
+ACCESS_TOKEN=$(curl -v -s -X POST \
+    "https://${SUBDOMAIN}.cyberark.cloud/oauth2/platformtoken" \
     -H "Content-Type: application/x-www-form-urlencoded" \
-    -d "username=${CLIENT_ID}&password=${CLIENT_SECRET}" | jq -r '.access_token')
+    --data-urlencode "grant_type"="client_credentials"              \
+    --data-urlencode "client_id"="$CLIENT_ID"		\
+    --data-urlencode "client_secret"="$CLIENT_SECRET"	)
+    #-d "client_id=${CLIENT_ID}&client_secret=${CLIENT_SECRET}&grant_type=client_credentials" | jq -r '.access_token')
 
+
+echo $ACCESS_TOKEN
+exit 0
 # Safe details
 SAFE_URL_ID="oxxo"
 MEMBER_NAME="JohnDoe"  # Replace with the desired member name
