@@ -48,7 +48,7 @@ for resource_group in $resource_groups; do
             if [ $? -eq 0 ]; then
               echo -e "${BOLD_GREEN}[OK] ${RESET}Tag update on secret ${BOLD_CYAN}$secret ${RESET}from vault ${BOLD_YELLOW}$vault ${RESET}" 
             else 
-              echo -e "${BOLD_RED}[ERROR] ${RESET} Tag update on secret ${BOLD_CYAN}$secret  ${RESET}from vault ${BOLD_YELLOW}$vault ${RESET}" 
+              echo -e "${BOLD_RED}[ERROR] ${RESET}Tag update on secret ${BOLD_CYAN}$secret  ${RESET}from vault ${BOLD_YELLOW}$vault ${RESET}" 
             fi
         done
     done
