@@ -1,12 +1,11 @@
 
 # Onboarding accounts from Azure Key Vault to CyberArk PAM to be used by CyberArk Secrets HUB
 
-Script com objetivo de importar secrets da Azure Key Vault para o CyberArk PAM.
-Realizado as automaticações e lógicas dentro deste script para termanecer mais simples possível de entendimento para todos.
+Script to import secrets from Azure Key Vault to CyberArk PAM.
+Automations and logic have been made within this script to make it as simple as possible for everyone to understand.
 
 
 ## Support
-
 For support, email aslan.ramos@cyberark.com.
 
 
