@@ -156,26 +156,49 @@ update_vault(){
 
 # CLEAN TERMINAL
 clear 
+if [ "$1" == "list" ]; then
+  if [ "$2" == "" ]; then
+   clear
+   echo "RESOURCE GROUPS"
+   az group list --query '[].name' -o tsv
+   exit
+  elif [ "$2" == "akv" ]; then
+     az keyvault list --resource-group $3 --query '[].name' -o tsv
+     exit
+  elif [ "$2" == "secrets" ]; then  
+     echo "VAULT: $3"
+     az keyvault secret list --vault-name $3 --query '[].name' -o tsv
+     exit
+   fi
+fi
 
+if [ "$1" == "akv" ]; then
+  if  [ "$2" != "" ]; then
+  az keyvault list --resource-group $2 --query '[].name' -o tsv
+  exit
+  else
+  echo "Please add the Resource Group name"
+  exit
+  fi
+fi
 
-resource_group=$1
+if [ "$1" == "" ]; then
+   echo -e "You must specify the ${BOLD_RED}ResourceGroup${RESET} and ${BOLD_RED}AKV Name${RESET} to be synchronized to CyberArk Privileged Cloud"
+   echo "Example:"
+   echo -e "\t$0${BOLD_RED} ResourceGroup AKV_name ${RESET} "
+   exit 1
+elif [ "$2" == "" ]; then
+   echo -e "You must specify the ${BOLD_RED}Vault${RESET} after the ResourceGroup ${BOLD_GREEN}$1${RESET} to be synchronized to CyberArk Privileged Cloud"
+   echo "Example:"
+   echo -e "\t$0 ${BOLD_GREEN}$1 ${BOLD_BLUE}AKV_name ${RESET} "
+   exit 1
+fi
+
 vault=$2
+resource_group=$1
 
 tag_secrets "${vault}"
 update_vault "${vault}"
-exit
 
-echo -e "Onboarding account from ${BLUE} Azure AKV ${RESET} to ${GREEN} CyberArk Secrets HUB ${RESET}"
-
-
-# DISABLED Get a list of all resource groups
-#resource_groups=$(az group list --query '[].name' -o tsv)
-#vaults=$(az keyvault list --resource-group $resource_group --query '[].name' -o tsv)
-
-
-    echo -e "Retrieving secrets from resource group: ${BOLD_WHITE}$resource_group${RESET}"
-    
-    # Get a list of all Key Vaults in the resource group
-    vaults=$(az keyvault list --resource-group $resource_group --query '[].name' -o tsv)
         
 
