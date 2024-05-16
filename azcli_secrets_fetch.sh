@@ -95,21 +95,23 @@ create_account_pcloud(){
   fi
 }
 
-# CLEAN TERMINAL
-clear 
-
-echo -e "Onboarding account from ${BLUE} Azure AKV ${RESET} to ${GREEN} CyberArk Secrets HUB ${RESET}"
-
-# Get a list of all resource groups
-resource_groups=$(az group list --query '[].name' -o tsv)
-
-# Iterate over each resource group
-for resource_group in $resource_groups; do
-    echo -e "Retrieving secrets from resource group: ${BOLD_WHITE}$resource_group${RESET}"
-    
-    # Get a list of all Key Vaults in the resource group
-    vaults=$(az keyvault list --resource-group $resource_group --query '[].name' -o tsv)
+# TAG secrets to SecretsHub know
+tag_secrets(){
+        echo -e "Retrieving secrets from Resource Group ${BOLD_WHITE}${resource_group}${RESET} -> Key Vault: ${BOLD_WHITE}$vault ${RESET}"
         
+        # Get a list of all secrets in the Key Vault
+        secrets=$(az keyvault secret list --vault-name $1 --query '[].name' -o tsv)
+         for secret in $secrets; do
+            az keyvault secret set-attributes --vault-name $1 --name $secret --tags "CyberArk PAM=Privileged Cloud" "CyberArk Safe=$1" "Sourced by CyberArk=True" | grep -i "Sourced by CyberArk"> /dev/null 2>&1          
+            if [ $? -eq 0 ]; then
+              echo -e "${BOLD_GREEN}[OK] ${RESET}Tag update on secret ${BOLD_CYAN}$secret ${RESET}from vault ${BOLD_YELLOW}$1 ${RESET}" 
+            else 
+              echo -e "${BOLD_RED}[ERROR] ${RESET}Tag update on secret ${BOLD_CYAN}$secret  ${RESET}from vault ${BOLD_YELLOW}$1 ${RESET}" 
+            fi
+        done
+}
+
+update_recursive(){
     # Iterate over each Key Vault
     for vault in $vaults; do
         echo "Verify if the safe exist on CyberArk PCloud"
@@ -129,4 +131,51 @@ for resource_group in $resource_groups; do
             create_account_pcloud $vault $secret $secret_value 
         done
     done
-done
+}
+update_vault(){
+    # Iterate over each Key Vault
+   
+        echo "Verify if the safe exist on CyberArk PCloud"
+        check_safe_exist "${vault}"
+        verify_members_safe "${vault}"
+
+        echo -e "Retrieving secrets from Resource Group ${BOLD_WHITE} ${resource_group}${RESET}-> Key Vault: $vault ${RESET}"
+        
+        # Get a list of all secrets in the Key Vault
+        secrets=$(az keyvault secret list --vault-name $vault --query '[].name' -o tsv)
+        
+        # Iterate over each secret
+        for secret in $secrets; do
+                       
+            # Retrieve the value of the secret
+            secret_value=$(az keyvault secret show --vault-name $vault --name $secret --query 'value' -o tsv)
+            create_account_pcloud $vault $secret $secret_value 
+        done
+}
+
+
+# CLEAN TERMINAL
+clear 
+
+
+resource_group=$1
+vault=$2
+
+tag_secrets "${vault}"
+update_vault "${vault}"
+exit
+
+echo -e "Onboarding account from ${BLUE} Azure AKV ${RESET} to ${GREEN} CyberArk Secrets HUB ${RESET}"
+
+
+# DISABLED Get a list of all resource groups
+#resource_groups=$(az group list --query '[].name' -o tsv)
+#vaults=$(az keyvault list --resource-group $resource_group --query '[].name' -o tsv)
+
+
+    echo -e "Retrieving secrets from resource group: ${BOLD_WHITE}$resource_group${RESET}"
+    
+    # Get a list of all Key Vaults in the resource group
+    vaults=$(az keyvault list --resource-group $resource_group --query '[].name' -o tsv)
+        
+
