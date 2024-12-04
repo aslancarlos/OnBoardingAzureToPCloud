@@ -21,14 +21,11 @@ BOLD_WHITE='\033[1;37m'   # Bold White
 # Reset formatting
 RESET='\033[0m'           # Reset to default formatting
 
-## Need to be defined. 
+
+############################################################
+######################## REQUIRED #########################
+# Please define which CPM Server will be used on CyberArk PAM Safe
 CPM=""
-
-if [[ -z ${CPM} ]]; then
-   echo "ERROR: Please add the CPM Server name" 
-fi
-
-
 
 counter(){
 # Counting down 
@@ -75,6 +72,8 @@ verify_members_safe(){
    done
 }
 
+
+# To remove
 #create_member_safe(){
 #   cybr safe add-member -s $1 --access-content-without-confirmation --list-accounts --view-safe-members --retrieve-accounts -m 'SecretsHub' -t user 
 #   #cybr safe add-member -s $1 --access-content-without-confirmation --list-accounts --view-safe-members --retrieve-accounts -m 'aslan.ramos@cyberark.cloud.1741' -t user 
@@ -97,16 +96,16 @@ create_account_pcloud(){
 
 # TAG secrets to SecretsHub know
 tag_secrets(){
-        echo -e "Retrieving secrets from Resource Group ${BOLD_WHITE}${resource_group}${RESET} -> Key Vault: ${BOLD_WHITE}$vault ${RESET}"
+        echo -e "Retrieving secrets from Resource Group ${BOLD_WHITE}$1${RESET} -> Key Vault: ${BOLD_WHITE}$2 ${RESET}"
         
         # Get a list of all secrets in the Key Vault
-        secrets=$(az keyvault secret list --vault-name $1 --query '[].name' -o tsv)
+        secrets=$(az keyvault secret list --vault-name $2 --query '[].name' -o tsv)
          for secret in $secrets; do
-            az keyvault secret set-attributes --vault-name $1 --name $secret --tags "CyberArk PAM=Privileged Cloud" "CyberArk Safe=$1" "Sourced by CyberArk=True" | grep -i "Sourced by CyberArk"> /dev/null 2>&1          
+            az keyvault secret set-attributes --vault-name $2 --name $secret --tags "CyberArk PAM=Privileged Cloud" "CyberArk Safe=$1" "Sourced by CyberArk=True" | grep -i "Sourced by CyberArk"> /dev/null 2>&1          
             if [ $? -eq 0 ]; then
-              echo -e "${BOLD_GREEN}[OK] ${RESET}Tag update on secret ${BOLD_CYAN}$secret ${RESET}from vault ${BOLD_YELLOW}$1 ${RESET}" 
+              echo -e "${BOLD_GREEN}[OK] ${RESET}Tag update on secret ${BOLD_CYAN}$secret ${RESET}from key vault ${BOLD_YELLOW}$1 ${RESET}" 
             else 
-              echo -e "${BOLD_RED}[ERROR] ${RESET}Tag update on secret ${BOLD_CYAN}$secret  ${RESET}from vault ${BOLD_YELLOW}$1 ${RESET}" 
+              echo -e "${BOLD_RED}[ERROR] ${RESET}Tag update on secret ${BOLD_CYAN}$secret  ${RESET}from key vault ${BOLD_YELLOW}$1 ${RESET}" 
             fi
         done
 }
@@ -136,13 +135,13 @@ update_vault(){
     # Iterate over each Key Vault
    
         echo "Verify if the safe exist on CyberArk PCloud"
-        check_safe_exist "${vault}"
-        verify_members_safe "${vault}"
+        check_safe_exist "$1"
+        verify_members_safe "$1"
 
-        echo -e "Retrieving secrets from Resource Group ${BOLD_WHITE} ${resource_group}${RESET}-> Key Vault: $vault ${RESET}"
+        echo -e "Retrieving secrets from Resource Group ${BOLD_WHITE} $1 ${RESET}-> Key Vault: $2 ${RESET}"
         
         # Get a list of all secrets in the Key Vault
-        secrets=$(az keyvault secret list --vault-name $vault --query '[].name' -o tsv)
+        secrets=$(az keyvault secret list --vault-name $2 --query '[].name' -o tsv)
         
         # Iterate over each secret
         for secret in $secrets; do
@@ -153,52 +152,177 @@ update_vault(){
         done
 }
 
+check_az() {
+  if ! command -v "az" &> /dev/null; then
+    echo -e "${BOLD_RED} ERROR: AZCLI is not installed. Please install it to proceed.${RESET}\n"
+    echo -e "${BOLD_YELLOW}!!! Please follow this procedure:${YELLOW} https://learn.microsoft.com/en-us/cli/azure/install-azure-cli-linux?pivots=apt ${RESET}"
+    exit 1
+  fi
+}
+
+
+check_cybr() {
+  if ! command -v "cybr" &> /dev/null; then
+    echo -e "${BOLD_RED} ERROR: Cybr CLI is not installed. Please install it to proceed.${RESET}\n"
+    echo -e "${BOLD_YELLOW}!!! Please follow this procedure: ${YELLOW}https://github.com/infamousjoeg/cybr-cli ${RESET}"
+    exit 1
+  fi
+}
+
+log_error(){
+   echo -e "${BOLD_RED}ERROR:${RED} $1 ${RESET}\n"
+   show_help
+   exit 1
+}
+
+
+show_help() {
+  echo "Usage: $0 <command> [options]"
+  echo
+  echo "Commands:"
+  echo "  list [subscriptions|resource|akv|secrets|tag]   Perform listing operations for subscriptions, resource groups, key vaults, or secrets."
+  echo "    subscriptions                                 List all subscriptions your account can access."
+  echo "    resource                                      List all resource groups in the current subscription."
+  echo "    akv <resource-group>                          List all key vaults within the specified resource group."
+  echo "    secrets <vault-name>                          List all secrets stored in the specified key vault."
+  echo "    tag <resource-group> <vault-name>             Tag all secrets in the specified key vault with SecretsHub tags."
+  echo
+  echo "  set <subscription-id>                           Change the active subscription to the specified subscription ID."
+  echo
+  echo "  akv <resource-group>                            List all key vaults in the specified resource group."
+  echo
+  echo "  tag <resource-group> <vault-name>               Apply tags to all secrets in the specified key vault."
+  echo
+  echo "  onboard <resource-group> <vault-name>           Create the Vault and accounts on CyberArk PCLOUD."
+  echo
+  echo "Examples:"
+  echo "  $0 list subscriptions                           List all subscriptions available to your account."
+  echo "  $0 list resource                                List all resource groups in the current subscription."
+  echo "  $0 list akv <resource-group>                    List key vaults within a specific resource group."
+  echo "  $0 list secrets <vault-name>                    List secrets stored in a specific key vault."
+  echo "  $0 set <subscription-id>                        Change to a specific subscription by its ID."
+  echo "  $0 akv <resource-group>                         List all key vaults in a specific resource group."
+  echo "  $0 tag <resource-group> <vault-name>            Tag all secrets in a specified key vault."
+  echo "  $0 onboard <resource-group> <vault-name>        Create the Vault and accounts on CyberArk PCLOUD."
+  echo
+  echo "Note:"
+  echo "  Ensure all required parameters are provided for each command."
+  echo "  Use the 'list' command to identify resources and prepare for further operations."
+  exit 1
+}
+
+
+# Check if the required software are installed
+check_az
+check_cybr
+
+
+# To create a safe, it is required to define the CPM Server
+# Please check on your PCLOUD tenant which one will be used
+if [[ -z "${CPM}" ]]; then
+    echo -e "${BOLD_RED} ERROR: Missing the CPM Server name ${RESET}\n\n"
+    echo -e "${BOLD_YELLOW} !!! Please edit $0 and add the CPM server name to the CPM variable.${RESET}" 
+    exit 1
+fi
+
+
+
+if [ -z "$1" ]; then
+  clear
+  show_help
+fi
+
+
+
+
+
 
 # CLEAN TERMINAL
-clear 
-if [ "$1" == "list" ]; then
-  if [ "$2" == "" ]; then
-   clear
-   echo "RESOURCE GROUPS"
-   az group list --query '[].name' -o tsv
-   exit
-  elif [ "$2" == "akv" ]; then
-     az keyvault list --resource-group $3 --query '[].name' -o tsv
-     exit
-  elif [ "$2" == "secrets" ]; then  
-     echo "VAULT: $3"
-     az keyvault secret list --vault-name $3 --query '[].name' -o tsv
-     exit
-   fi
-fi
+#clear 
 
-if [ "$1" == "akv" ]; then
-  if  [ "$2" != "" ]; then
-  az keyvault list --resource-group $2 --query '[].name' -o tsv
-  exit
-  else
-  echo "Please add the Resource Group name"
-  exit
-  fi
-fi
+# Processa os comandos
+case "$1" in
+  list)
+    case "$2" in
+      subscriptions)
+	username=$(az account show -o json | jq -r '.user.name')
+        echo -e "${BOLD_GREEN}Logged as: ${BOLD_YELLOW}$username ${RESET}"
+        az account list --query '[].{Name:name, SubscriptionId:id, IsDefault:isDefault}' -o table
+        ;;
+      resource)
+        echo -e "${BOLD_GREEN}Resource Groups: ${RESET}\n"
+	az group list --query '[].{Name:name, Location:location}' -o table
+        ;;
+      akv)
+        if [ -z "$3" ]; then
+          log_error "Please specify the resource group name."
+        fi
+        echo -e "${BOLD_WHITE}Key Vaults in Resource Group:${BOLD_GREEN} $3 ${RESET}"
+	az keyvault list --resource-group "$3" --query '[].{Name:name, Location:location}' -o table
+        ;;
+      secrets)
+        if [ -z "$3" ]; then
+          log_error "Please specify the vault name."
+        fi
+        echo -e "${BOLD_WHITE}Secrets in Key Vault:${BOLD_GREEN} $3 ${RESET}"
+	secrets=$(az keyvault secret list --vault-name "$3" --query '[].{Name:name, Created:attributes.created}' -o table)
+	if [ -z "$secrets" ]; then
+	  echo "No secrets found in Vault: $3"
+	  exit 0
+	else
+	  echo "$secrets" | nl -w 2 -s '. '
+	  exit 0
+	fi
+        ;;
+      *)
+        log_error "Invalid option for 'list'"
+        ;;
+    esac
+    ;;
+  set)
+    if [ -z "$2" ]; then
+      echo -e "${BOLD_RED}Please add the Subscription ID to change ${RESET}"
+      show_help
+      exit 1
+    fi
+    az account set --subscription $2
+    echo -e "${BOLD_MAGENTA}Validating the change to subscription ${RESET} "
+    show=$(az account show --query '{SubscriptionId:id}' -o tsv)
+    if [[ "$show" == "$2" ]]; then
+	   echo -e "${BOLD_WHITE}[+] Changed to: ${BOLD_BLUE}$2 ${RESET}"
+	   exit 0
+    else
+	   log_error "Someting wrong. Please check your account permissions"
+    fi
+    ;;
+  akv)
+    if [ -z "$2" ]; then
+      log_error "Please add the resource group name."
+    fi
+      az keyvault list --resource-group "$2" --query '[].name' -o tsv
+    ;;
 
-if [ "$1" == "" ]; then
-   echo -e "You must specify the ${BOLD_RED}ResourceGroup${RESET} and ${BOLD_RED}AKV Name${RESET} to be synchronized to CyberArk Privileged Cloud"
-   echo "Example:"
-   echo -e "\t$0${BOLD_RED} ResourceGroup AKV_name ${RESET} "
-   exit 1
-elif [ "$2" == "" ]; then
-   echo -e "You must specify the ${BOLD_RED}Vault${RESET} after the ResourceGroup ${BOLD_GREEN}$1${RESET} to be synchronized to CyberArk Privileged Cloud"
-   echo "Example:"
-   echo -e "\t$0 ${BOLD_GREEN}$1 ${BOLD_BLUE}AKV_name ${RESET} "
-   exit 1
-fi
-
-vault=$2
-resource_group=$1
-
-tag_secrets "${vault}"
-update_vault "${vault}"
-
+  tag)
+    if [ -z "$2" ]; then
+      log_error "Missing ResourceGroup name and Key Vault name"
+      show_help
+      exit 1
+    elif [ -z "$3" ]; then
+      log_error "Missing Key Vault name"
+    fi
+    tag_secrets "$2" "$3"
+    ;;
+   onboard)
+    if [ -z "$2" ]; then
+      log_error "Missing ResourceGroup name and Key Vault name"
+    elif [ -z "$3" ]; then
+      log_error "Missing Key Vault name"
+    fi
+    update_vault "$2" "$3"
+    ;;
+  *)
+    log_error "Invalid command."
+    ;;
+esac
         
 
