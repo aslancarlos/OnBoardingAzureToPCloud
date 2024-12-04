@@ -25,7 +25,7 @@ RESET='\033[0m'           # Reset to default formatting
 ############################################################
 ######################## REQUIRED #########################
 # Please define which CPM Server will be used on CyberArk PAM Safe
-CPM=""
+CPM="CPM-1"
 
 counter(){
 # Counting down 
@@ -147,8 +147,8 @@ update_vault(){
         for secret in $secrets; do
                        
             # Retrieve the value of the secret
-            secret_value=$(az keyvault secret show --vault-name $vault --name $secret --query 'value' -o tsv)
-            create_account_pcloud $vault $secret $secret_value 
+            secret_value=$(az keyvault secret show --vault-name $2 --name $secret --query 'value' -o tsv)
+            create_account_pcloud $2 $secret $secret_value 
         done
 }
 
