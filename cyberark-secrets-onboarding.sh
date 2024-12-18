@@ -25,7 +25,7 @@ RESET='\033[0m'           # Reset to default formatting
 ############################################################
 ######################## REQUIRED #########################
 # Please define which CPM Server will be used on CyberArk PAM Safe
-CPM="CPM-1"
+CPM=""
 
 counter(){
 # Counting down 
@@ -44,7 +44,7 @@ counter(){
 
 # Function check if the safe exist
 check_safe_exist() {
-  cybr safes list-member -s $1 > /dev/null 2>&1
+  ark exec pcloud safes safe -si $1 > /dev/null 2>&1
   if [ $? -eq 0 ]; then
      echo -e "${GREEN}[OK] ${RESET} Exist the safe ${BOLD_GREEN} $1 ${RESET}" 
      return 1
@@ -58,18 +58,15 @@ check_safe_exist() {
 }
 
 verify_members_safe(){
-   users=("SecretsHub")
-   for member in "${users[@]}"; do
-      #cybr safe list-members -s $1 | jq '.value[] | select(.memberName == "'${member}'")' > /dev/null 2>&1
-      cybr safe list-members -s $1 | grep -i SecretsHub > /dev/null 2>&1
-      if [ $? -eq 0 ]; then
-         echo -e "${GREEN}[OK] ${RESET} Exist ${member} on safe ${BOLD_GREEN} $1 ${RESET}" 
-      else 
-         echo -e "${RED}[ERROR] ${RESET} No exist  ${member} on safe ${BOLD_RED} $1 ${RESET}"
-         echo -e "${BOLD_RED}Please add the SecretsHub as member on this safe $1${RESET}"
-         
-      fi
-   done
+  member="SecretsHub"
+  #cybr safe list-members -s $1 | grep -i SecretsHub > /dev/null 2>&1
+  ark exec pcloud safes list-safe-members-by -si $1 -s SecretsHub > /dev/null 2>&1
+  if [ $? -eq 0 ]; then
+     echo -e "${GREEN}[OK] ${RESET} Exist ${member} on safe ${BOLD_GREEN} $1 ${RESET}" 
+  else 
+     echo -e "${RED}[ERROR] ${RESET} No exist  ${member} on safe ${BOLD_RED} $1 ${RESET}"
+     echo -e "${BOLD_RED}Please add the SecretsHub as member on this safe $1${RESET}"
+  fi
 }
 
 
@@ -81,43 +78,55 @@ verify_members_safe(){
 
 #Create the safe
 create_safe() {
-  cybr safes add --cpm $CPM -s $1 -d "Safe created by CyberArk OnBoarding SecretsHub Script" 
-  echo "Created $1" 
+  #cybr safes add --cpm $CPM -s $1 -d "Safe created by CyberArk OnBoarding SecretsHub Script" 
+  ark exec pcloud safes add-safe -sn $1 -d "Created by ARK CLI for Azure OnBoarding" -mc $CPM > /dev/null 2>&1
+  if [ $? -eq 0 ]; then
+     echo -e "${GREEN}[OK] ${RESET} Created Safe $1 ${RESET}" 
+  else 
+     echo -e "${RED}[ERROR] ${RESET} Cannot create safe:${BOLD_RED} $1 ${RESET}"
+     exit 1
+  fi
 }
 
 create_account_pcloud(){
-  cybr accounts add -s $1 -p SecretsHubPlatform -t password -c $3 --platform-properties "SecretNameInSecretStore=$2" | grep -i id > /dev/null 2>&1
+  safe=$1
+  secretname=$2
+  secret=$3
+  #cybr accounts add -s $1 -p SecretsHubPlatform -t password -c $3 --platform-properties "SecretNameInSecretStore=$2" | grep -i id > /dev/null 2>&1
+  ark exec pcloud accounts add-account -sn $safe -n $secretname -un $secretname -pi SecretsHubPlatform -st password -s $secret -pap AKVName=$safename -pap SecretNameInSecretStore=$secretname 
   if [ $? -eq 0 ]; then
-         echo -e "${BOLD_GREEN}[OK] ${RESET} Create Secret $2 from $1 Created ${RESET}" 
+         echo -e "${BOLD_GREEN}[OK]${RESET} Create Secret $2 from $1 Created ${RESET}" 
   else 
-         echo -e "${BOLD_GREEN}[FAIL] ${RESET} Create Secret $2 from $1 Created ${RESET}"        
+         echo -e "${BOLD_GREEN}[FAIL]${RESET} Create Secret $2 from $1 Created ${RESET}"        
   fi
 }
 
 # TAG secrets to SecretsHub know
 tag_secrets(){
-        echo -e "Retrieving secrets from Resource Group ${BOLD_WHITE}$1${RESET} -> Key Vault: ${BOLD_WHITE}$2 ${RESET}"
+        echo -e "[+] Retrieving secrets from Resource Group ${BOLD_WHITE}$1${RESET} -> Key Vault: ${BOLD_WHITE}$2 ${RESET}"
         
         # Get a list of all secrets in the Key Vault
         secrets=$(az keyvault secret list --vault-name $2 --query '[].name' -o tsv)
          for secret in $secrets; do
-            az keyvault secret set-attributes --vault-name $2 --name $secret --tags "CyberArk PAM=Privileged Cloud" "CyberArk Safe=$1" "Sourced by CyberArk=True" | grep -i "Sourced by CyberArk"> /dev/null 2>&1          
+            az keyvault secret set-attributes --vault-name $2 --name $secret --tags "CyberArk PAM=Privileged Cloud" "CyberArk Safe=$1" "Sourced by CyberArk=True" "CyberArk Account=$secret" | grep -i "Sourced by CyberArk"> /dev/null 2>&1          
             if [ $? -eq 0 ]; then
-              echo -e "${BOLD_GREEN}[OK] ${RESET}Tag update on secret ${BOLD_CYAN}$secret ${RESET}from key vault ${BOLD_YELLOW}$1 ${RESET}" 
+              echo -e "${BOLD_GREEN}[OK] ${RESET}Tag update on secret ${BOLD_CYAN}$secret ${RESET}from key vault ${BOLD_YELLOW}$2 ${RESET}" 
             else 
-              echo -e "${BOLD_RED}[ERROR] ${RESET}Tag update on secret ${BOLD_CYAN}$secret  ${RESET}from key vault ${BOLD_YELLOW}$1 ${RESET}" 
+              echo -e "${BOLD_RED}[ERROR] ${RESET}Tag update on secret ${BOLD_CYAN}$secret  ${RESET}from key vault ${BOLD_YELLOW}$2 ${RESET}" 
             fi
         done
 }
 
 update_recursive(){
+    echo "DISABLED update_recursive"
+    exit 1
     # Iterate over each Key Vault
     for vault in $vaults; do
-        echo "Verify if the safe exist on CyberArk PCloud"
+        echo "[-] Verify if the safe exist on CyberArk PCloud"
         check_safe_exist "${vault}"
         verify_members_safe "${vault}"
 
-        echo -e "Retrieving secrets from Resource Group ${BOLD_WHITE} ${resource_group}${RESET}-> Key Vault: $vault ${RESET}"
+        echo -e "[+] Retrieving secrets from Resource Group ${BOLD_WHITE} ${resource_group}${RESET}-> Key Vault: $vault ${RESET}"
         
         # Get a list of all secrets in the Key Vault
         secrets=$(az keyvault secret list --vault-name $vault --query '[].name' -o tsv)
@@ -131,14 +140,27 @@ update_recursive(){
         done
     done
 }
+
+add_sh_member_vault(){
+   echo "[-] Verify if the safe exist on CyberArk PCloud"
+   member="SecretsHub"
+   #cybr safe list-members -s $1 | grep -i SecretsHub > /dev/null 2>&1
+   ark exec pcloud safes add-safe-member  --permission-set custom -mn $member -si $1 -mt User -npua -pra  -pla -pvsm -pawc > /dev/null 2>&1
+   if [ $? -eq 0 ]; then
+      echo -e "${GREEN}[OK]${RESET} Added ${member} on safe:${BOLD_GREEN} $1 ${RESET}"
+   else
+      echo -e "${RED}[ERROR] ${RESET} Already exist ${member} on safe ${BOLD_RED} $1 ${RESET}"
+   fi
+}
 update_vault(){
     # Iterate over each Key Vault
    
-        echo "Verify if the safe exist on CyberArk PCloud"
-        check_safe_exist "$1"
-        verify_members_safe "$1"
+        echo "[-] Verify if the safe exist on CyberArk PCloud"
+        check_safe_exist "$2"
+        verify_members_safe "$2"
+	add_sh_member_vault "$2"
 
-        echo -e "Retrieving secrets from Resource Group ${BOLD_WHITE} $1 ${RESET}-> Key Vault: $2 ${RESET}"
+        echo -e "[AZURE] Retrieving secrets from Resource Group ${BOLD_WHITE} $1 ${RESET}-> Key Vault: $2 ${RESET}"
         
         # Get a list of all secrets in the Key Vault
         secrets=$(az keyvault secret list --vault-name $2 --query '[].name' -o tsv)
@@ -162,9 +184,9 @@ check_az() {
 
 
 check_cybr() {
-  if ! command -v "cybr" &> /dev/null; then
-    echo -e "${BOLD_RED} ERROR: Cybr CLI is not installed. Please install it to proceed.${RESET}\n"
-    echo -e "${BOLD_YELLOW}!!! Please follow this procedure: ${YELLOW}https://github.com/infamousjoeg/cybr-cli ${RESET}"
+  if ! command -v "ark" &> /dev/null; then
+    echo -e "${BOLD_RED} ERROR: ARK CLI is not installed. Please install it to proceed.${RESET}\n"
+    echo -e "${BOLD_YELLOW}!!! Please follow this procedure: ${YELLOW}https://github.com/cyberark/ark-sdk-python/tree/main ${RESET}"
     exit 1
   fi
 }
