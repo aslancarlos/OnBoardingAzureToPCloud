@@ -11,6 +11,12 @@ Before using this script, ensure the following:
 1. **Azure CLI**: Installed and configured. Follow the guide at https://learn.microsoft.com/en-us/cli/azure/install-azure-cli.
 2. **ARK CLI**: Installed and configured. Follow the guide at https://github.com/cyberark/ark-sdk-python/tree/main.
 3. **CPM Configuration**: Edit the script to define the `CPM` variable with the name of the CPM Server used in CyberArk PAM Safe.
+4. **SecretsHub Platform Imported**: Ensure the SecretsHub Platform has been imported into PCLOUD. For optimal display of account data after the platform is imported:
+   - Edit the platform.
+   - Navigate to: `Target Account Platform -> UI & Workflows -> Properties -> Required`.
+   - Add `Username`.
+
+   This setup ensures that when accounts are imported, the username field will display the name of the secret imported from the Azure Key Vault (AKV).
 
 ---
 
@@ -99,6 +105,10 @@ To migrate Azure Key Vault secrets to CyberArk PCLOUD, follow these steps:
    ./cyberark-secrets-onboarding.sh onboard my-resource-group my-key-vault
    ```
 
+The script, during the onboarding process, will create a SAFE with the name of the corresponding AKV. Each account in CyberArk will represent a secret imported from the AKV. 
+
+The SAFE will already include the necessary permissions for the "SecretsHub" user, enabling synchronization. Note that manual synchronization setup within the SecretsHub console is required as a final step.
+
 ---
 
 ### Troubleshooting
@@ -114,11 +124,17 @@ To migrate Azure Key Vault secrets to CyberArk PCLOUD, follow these steps:
 3. **Missing ARK CLI**:
    If ARK CLI is not installed, follow the installation guide: https://github.com/cyberark/ark-sdk-python/tree/main.
 
-4. **Invalid Command**:
+4. **ARK CLI Session Expiry**:
+   The ARK CLI session has a short expiration time. Ensure you are logged in before executing the script to avoid migration issues.
+
+5. **Invalid Command**:
    Run the script without arguments to display the help menu:
    ```bash
    ./cyberark-secrets-onboarding.sh
    ```
+
+6. **Using Azure App Registration for Migration**:
+   Migration is supported using an Azure App Registration, provided it has the necessary permissions. Ensure the required permissions for CyberArk SecretsHub are added. Refer to the CyberArk SecretsHub documentation for detailed requirements.
 
 ---
 
